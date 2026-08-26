@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Opportunity Radar — Sami Ullah</title>
+<style>
+  :root{
+    --ink:#1B4B43;
+    --ink-soft:#3A6B60;
+    --paper:#F5F3EE;
+    --paper-raised:#FFFFFF;
+    --line:#DAD5C8;
+    --amber:#B8722C;
+    --red:#A6432F;
+    --green:#2E6B4F;
+    --text:#2A2A26;
+    --text-dim:#6B6A62;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family: Georgia, 'Times New Roman', serif;
+    background:var(--paper);
+    color:var(--text);
+  }
+  header{
+    padding:32px 24px 20px;
+    border-bottom:2px solid var(--ink);
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  header h1{
+    margin:0;
+    font-size:1.6rem;
+    letter-spacing:0.02em;
+    color:var(--ink);
+  }
+  header .meta{
+    font-family: 'Courier New', monospace;
+    font-size:0.8rem;
+    color:var(--text-dim);
+  }
+  main{ max-width:1000px; margin:0 auto; padding:24px; }
+  .panel{
+    background:var(--paper-raised);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:20px 24px;
+    margin-bottom:20px;
+  }
+  .panel h2{
+    font-size:1rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--ink-soft);
+    margin:0 0 14px;
+    font-family: 'Courier New', monospace;
+  }
+  .profile-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px,1fr));
+    gap:12px 24px;
+  }
+  .field label{
+    display:block;
+    font-family:'Courier New', monospace;
+    font-size:0.7rem;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    margin-bottom:2px;
+  }
+  .field .val{ font-size:0.95rem; }
+  .filters{
+    display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;
+  }
+  .filters button{
+    font-family:'Courier New', monospace;
+    font-size:0.75rem;
+    text-transform:uppercase;
+    padding:6px 12px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    border-radius:20px;
+    cursor:pointer;
+    color:var(--text-dim);
+  }
+  .filters button.active{
+    background:var(--ink);
+    color:#fff;
+    border-color:var(--ink);
+  }
+  .opp{
+    border-bottom:1px solid var(--line);
+    padding:16px 0;
+    display:grid;
+    grid-template-columns: 1fr auto;
+    gap:8px;
+    align-items:start;
+  }
+  .opp:last-child{ border-bottom:none; }
+  .opp h3{ margin:0 0 4px; font-size:1.05rem; }
+  .opp .sub{ font-size:0.85rem; color:var(--text-dim); margin-bottom:6px;}
+  .opp .desc{ font-size:0.9rem; color:var(--text); max-width:600px;}
+  .badge{
+    font-family:'Courier New', monospace;
+    font-size:0.75rem;
+    padding:4px 10px;
+    border-radius:20px;
+    white-space:nowrap;
+    height:fit-content;
+  }
+  .badge.apply{ background:#E4F1EA; color:var(--green); }
+  .badge.consider{ background:#FBEED9; color:var(--amber); }
+  .badge.skip{ background:#F6E4E0; color:var(--red); }
+  .deadline{ font-family:'Courier New', monospace; font-size:0.75rem; color:var(--text-dim); margin-top:6px;}
+  .empty{
+    padding:40px 20px;
+    text-align:center;
+    color:var(--text-dim);
+    font-family:'Courier New', monospace;
+    font-size:0.85rem;
+  }
+  a.applylink{ color:var(--ink); }
+  #status{ font-family:'Courier New', monospace; font-size:0.75rem; color:var(--text-dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Opportunity Radar</h1>
+  <div class="meta" id="status">connecting…</div>
+</header>
+
+<main>
+
+  <section class="panel" id="profile-panel">
+    <h2>Profile</h2>
+    <div class="profile-grid" id="profile-grid">
+      <div class="empty">Loading profile…</div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Opportunities</h2>
+    <div class="filters" id="filters">
+      <button data-f="all" class="active">All</button>
+      <button data-f="apply">🔥 Apply</button>
+      <button data-f="consider">🟡 Consider</button>
+      <button data-f="skip">🔴 Skip</button>
+    </div>
+    <div id="opp-list">
+      <div class="empty">No opportunities yet — this fills in once the backend + matching steps are live.</div>
+    </div>
+  </section>
+
+</main>
+
+<script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+
+  // ====== REPLACE THESE TWO LINES WITH YOUR OWN SUPABASE VALUES ======
+  const SUPABASE_URL = 'https://ybfxqfbzunmnwpgzpkei.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_NfnhAB1GwfrgGEL1T96rnw_a9CoFeLu';
+  // =====================================================================
+
+  const statusEl = document.getElementById('status');
+  let supabase;
+  try {
+    supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    statusEl.textContent = 'connected';
+  } catch (e) {
+    statusEl.textContent = 'not connected — check keys';
+  }
+
+  async function loadProfile(){
+    const grid = document.getElementById('profile-grid');
+    try {
+      const { data, error } = await supabase.from('profile').select('*').limit(1).single();
+      if (error || !data) { grid.innerHTML = '<div class="empty">No profile found. Run step4a_insert_profile.sql in Supabase.</div>'; return; }
+      const fields = [
+        ['Name','full_name'],['Degree','degree'],['University','university'],
+        ['CGPA','cgpa'],['Country','country'],['Field','field_of_study'],
+        ['Preferred countries','preferred_countries'],['Funding','funding_preference'],
+        ['Target level','degree_level_preference'],['Career goal','career_goals']
+      ];
+      grid.innerHTML = fields.map(([label,key]) => `
+        <div class="field">
+          <label>${label}</label>
+          <div class="val">${data[key] ?? '—'}</div>
+        </div>
+      `).join('');
+    } catch(e){
+      grid.innerHTML = '<div class="empty">Could not load profile. Check your Supabase connection.</div>';
+    }
+  }
+
+  let allMatches = [];
+  function statusClass(s){
+    if(!s) return 'consider';
+    s = s.toLowerCase();
+    if(s.includes('apply')) return 'apply';
+    if(s.includes('skip') || s.includes('not eligible')) return 'skip';
+    return 'consider';
+  }
+
+  function render(filter){
+    const list = document.getElementById('opp-list');
+    const rows = filter === 'all' ? allMatches : allMatches.filter(m => statusClass(m.matches?.[0]?.status) === filter);
+    if(!rows.length){ list.innerHTML = '<div class="empty">Nothing here yet.</div>'; return; }
+    list.innerHTML = rows.map(o => {
+      const m = o.matches?.[0];
+      const cls = statusClass(m?.status);
+      return `
+        <div class="opp">
+          <div>
+            <h3>${o.title}</h3>
+            <div class="sub">${o.category ?? ''} · ${o.source ?? ''} · ${o.funding_type ?? ''}</div>
+            <div class="desc">${o.description ?? ''}</div>
+            ${o.deadline ? `<div class="deadline">Deadline: ${o.deadline}</div>` : ''}
+            ${o.source_url ? `<div class="deadline"><a class="applylink" href="${o.source_url}" target="_blank">View source →</a></div>` : ''}
+          </div>
+          <span class="badge ${cls}">${m?.match_percent ?? '–'}% · ${m?.status ?? 'Unscored'}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function loadOpportunities(){
+    try {
+      const { data, error } = await supabase
+        .from('opportunities')
+        .select('*, matches(match_percent, status, reasoning)')
+        .order('deadline', { ascending: true });
+      if (error) { console.error(error); return; }
+      allMatches = data || [];
+      render('all');
+    } catch(e){ console.error(e); }
+  }
+
+  document.getElementById('filters').addEventListener('click', (e) => {
+    if(e.target.tagName !== 'BUTTON') return;
+    document.querySelectorAll('#filters button').forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    render(e.target.dataset.f);
+  });
+
+  loadProfile();
+  loadOpportunities();
+</script>
+
+</body>
+</html>
