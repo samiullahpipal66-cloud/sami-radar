@@ -2,8 +2,8 @@
 // Scores opportunities that don't have a match yet, using Gemini.
 
 const GEMINI_MODEL = "gemini-2.5-flash";
-const MAX_PER_RUN = 1; // one at a time — safest pace without a billing account
-const DELAY_MS = 0; // not needed when only processing one item
+const MAX_PER_RUN = 15; // stays under the ~20/day free quota with headroom
+const DELAY_MS = 2000; // small courtesy delay between requests
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
