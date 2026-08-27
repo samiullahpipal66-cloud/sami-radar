@@ -1,9 +1,9 @@
 // api/match-opportunities.js
 // Scores opportunities that don't have a match yet, using Gemini.
 
-const GEMINI_MODEL = "gemini-2.5-flash"; // stable model, more reliable than the "latest" alias
-const MAX_PER_RUN = 5; // smaller batch, gentler on free-tier rate limits
-const DELAY_MS = 4000; // wait between requests so we don't hit per-minute limits
+const GEMINI_MODEL = "gemini-2.5-flash";
+const MAX_PER_RUN = 3; // small batch — free tier allows ~10 requests/minute
+const DELAY_MS = 8000; // 8 seconds between requests, well under the per-minute limit
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
