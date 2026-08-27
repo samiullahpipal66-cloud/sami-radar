@@ -279,7 +279,8 @@
         ['CGPA','cgpa'],['Country','country'],['Field','field_of_study'],
         ['Preferred countries','preferred_countries'],['Funding','funding_preference'],
         ['Target level','degree_level_preference'],['Career goal','career_goals'],
-        ['Categories targeted','categories_of_interest']
+        ['Categories targeted','categories_of_interest'],
+        ['Recent achievements','recent_achievements']
       ];
       grid.innerHTML = fields.map(([label,key]) => `
         <div class="field">
@@ -349,6 +350,15 @@
         file_name,
       }]);
       if (insertError) throw insertError;
+
+      // Grow the profile automatically with this new achievement
+      const { data: profileRow } = await supabase.from('profile').select('id, recent_achievements').limit(1).single();
+      if (profileRow) {
+        const entry = categoryInput.value.trim() ? `${title} (${categoryInput.value.trim()})` : title;
+        const updated = profileRow.recent_achievements ? `${profileRow.recent_achievements}; ${entry}` : entry;
+        await supabase.from('profile').update({ recent_achievements: updated }).eq('id', profileRow.id);
+        loadProfile();
+      }
 
       titleInput.value = '';
       categoryInput.value = '';
