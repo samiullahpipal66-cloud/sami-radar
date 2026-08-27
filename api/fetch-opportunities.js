@@ -2,8 +2,8 @@
 // Scores opportunities that don't have a match yet, using Gemini.
 
 const GEMINI_MODEL = "gemini-2.5-flash";
-const MAX_PER_RUN = 3; // small batch — free tier allows ~10 requests/minute
-const DELAY_MS = 8000; // 8 seconds between requests, well under the per-minute limit
+const MAX_PER_RUN = 1; // one at a time — safest pace without a billing account
+const DELAY_MS = 0; // not needed when only processing one item
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
