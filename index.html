@@ -128,6 +128,78 @@
   }
   a.applylink{ color:var(--ink); }
   #status{ font-family:'Courier New', monospace; font-size:0.75rem; color:var(--text-dim); }
+
+  .upload-form{
+    display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px;
+    padding-bottom:18px; border-bottom:1px dashed var(--line);
+  }
+  .upload-form input[type="text"]{
+    flex:1; min-width:140px;
+    padding:8px 10px;
+    border:1px solid var(--line);
+    border-radius:4px;
+    font-family:Georgia, serif;
+    font-size:0.9rem;
+    background:var(--paper);
+  }
+  .upload-form input[type="file"]{ font-size:0.8rem; max-width:200px; }
+  .upload-form button{
+    padding:8px 16px;
+    background:var(--ink);
+    color:#fff;
+    border:none;
+    border-radius:4px;
+    cursor:pointer;
+    font-family:'Courier New', monospace;
+    font-size:0.8rem;
+    text-transform:uppercase;
+  }
+  .upload-form button:disabled{ opacity:0.5; cursor:not-allowed; }
+  #upload-status{ font-family:'Courier New', monospace; font-size:0.75rem; color:var(--text-dim); margin-bottom:10px; }
+  .achievement{
+    border-bottom:1px solid var(--line);
+    padding:10px 0;
+  }
+  .achievement:last-child{ border-bottom:none; }
+  .achievement .a-title{ font-weight:bold; }
+  .achievement .a-meta{ font-size:0.8rem; color:var(--text-dim); }
+  .achievement a{ color:var(--ink); font-size:0.85rem; }
+
+  details.folder{
+    border:1px solid var(--line);
+    border-radius:4px;
+    margin-bottom:10px;
+    overflow:hidden;
+  }
+  details.folder summary{
+    padding:10px 14px;
+    cursor:pointer;
+    font-family:'Courier New', monospace;
+    text-transform:uppercase;
+    font-size:0.8rem;
+    background:var(--paper);
+    color:var(--ink-soft);
+    list-style:none;
+  }
+  details.folder summary::-webkit-details-marker{ display:none; }
+  details.folder summary::before{ content:"📁 "; }
+  details.folder[open] summary::before{ content:"📂 "; }
+  .applied-item{ padding:10px 14px; border-top:1px solid var(--line); }
+  .applied-item .a-title{ font-weight:bold; }
+  .applied-item .a-meta{ font-size:0.8rem; color:var(--text-dim); }
+  .mark-applied-btn{
+    font-family:'Courier New', monospace;
+    font-size:0.7rem;
+    text-transform:uppercase;
+    padding:4px 10px;
+    border:1px solid var(--ink);
+    background:transparent;
+    color:var(--ink);
+    border-radius:20px;
+    cursor:pointer;
+    margin-top:6px;
+  }
+  .mark-applied-btn:disabled{ opacity:0.5; cursor:default; }
 </style>
 </head>
 <body>
@@ -147,6 +219,20 @@
   </section>
 
   <section class="panel">
+    <h2>Achievements</h2>
+    <div class="upload-form">
+      <input type="text" id="ach-title" placeholder="Title (e.g. Certificate name)">
+      <input type="text" id="ach-category" placeholder="Category (optional)">
+      <input type="file" id="ach-file">
+      <button id="ach-submit">Upload</button>
+    </div>
+    <div id="upload-status"></div>
+    <div id="achievements-list">
+      <div class="empty">No achievements added yet.</div>
+    </div>
+  </section>
+
+  <section class="panel">
     <h2>Opportunities</h2>
     <div class="filters" id="filters">
       <button data-f="all" class="active">All</button>
@@ -159,15 +245,20 @@
     </div>
   </section>
 
+  <section class="panel">
+    <h2>Applied</h2>
+    <div id="applied-list">
+      <div class="empty">Nothing marked as applied yet.</div>
+    </div>
+  </section>
+
 </main>
 
 <script type="module">
   import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
 
-  // ====== REPLACE THESE TWO LINES WITH YOUR OWN SUPABASE VALUES ======
   const SUPABASE_URL = 'https://ybfxqfbzunmnwpgzpkei.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_NfnhAB1GwfrgGEL1T96rnw_a9CoFeLu';
-  // =====================================================================
 
   const statusEl = document.getElementById('status');
   let supabase;
@@ -182,7 +273,7 @@
     const grid = document.getElementById('profile-grid');
     try {
       const { data, error } = await supabase.from('profile').select('*').limit(1).single();
-      if (error || !data) { grid.innerHTML = '<div class="empty">No profile found. Run step4a_insert_profile.sql in Supabase.</div>'; return; }
+      if (error || !data) { grid.innerHTML = '<div class="empty">No profile found.</div>'; return; }
       const fields = [
         ['Name','full_name'],['Degree','degree'],['University','university'],
         ['CGPA','cgpa'],['Country','country'],['Field','field_of_study'],
@@ -197,9 +288,79 @@
         </div>
       `).join('');
     } catch(e){
-      grid.innerHTML = '<div class="empty">Could not load profile. Check your Supabase connection.</div>';
+      grid.innerHTML = '<div class="empty">Could not load profile.</div>';
     }
   }
+
+  async function loadAchievements(){
+    const list = document.getElementById('achievements-list');
+    try {
+      const { data, error } = await supabase
+        .from('achievements')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error || !data || !data.length) {
+        list.innerHTML = '<div class="empty">No achievements added yet.</div>';
+        return;
+      }
+      list.innerHTML = data.map(a => `
+        <div class="achievement">
+          <div class="a-title">${a.title}${a.category ? ` <span class="a-meta">— ${a.category}</span>` : ''}</div>
+          ${a.description ? `<div class="a-meta">${a.description}</div>` : ''}
+          ${a.file_url ? `<a href="${a.file_url}" target="_blank">View file →</a>` : ''}
+        </div>
+      `).join('');
+    } catch(e){
+      list.innerHTML = '<div class="empty">Could not load achievements.</div>';
+    }
+  }
+
+  document.getElementById('ach-submit').addEventListener('click', async () => {
+    const titleInput = document.getElementById('ach-title');
+    const categoryInput = document.getElementById('ach-category');
+    const fileInput = document.getElementById('ach-file');
+    const btn = document.getElementById('ach-submit');
+    const statusDiv = document.getElementById('upload-status');
+
+    const title = titleInput.value.trim();
+    if (!title) { statusDiv.textContent = 'Please enter a title.'; return; }
+
+    btn.disabled = true;
+    statusDiv.textContent = 'Uploading…';
+
+    try {
+      let file_url = null;
+      let file_name = null;
+
+      const file = fileInput.files[0];
+      if (file) {
+        const path = `${Date.now()}_${file.name}`;
+        const { error: uploadError } = await supabase.storage.from('achievements').upload(path, file);
+        if (uploadError) throw uploadError;
+        const { data: urlData } = supabase.storage.from('achievements').getPublicUrl(path);
+        file_url = urlData.publicUrl;
+        file_name = file.name;
+      }
+
+      const { error: insertError } = await supabase.from('achievements').insert([{
+        title,
+        category: categoryInput.value.trim() || null,
+        file_url,
+        file_name,
+      }]);
+      if (insertError) throw insertError;
+
+      titleInput.value = '';
+      categoryInput.value = '';
+      fileInput.value = '';
+      statusDiv.textContent = 'Added ✓';
+      loadAchievements();
+    } catch (e) {
+      statusDiv.textContent = 'Upload failed: ' + (e.message || e);
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   let allMatches = [];
   function statusClass(s){
@@ -225,11 +386,33 @@
             <div class="desc">${o.description ?? ''}</div>
             ${o.deadline ? `<div class="deadline">Deadline: ${o.deadline}</div>` : ''}
             ${o.source_url ? `<div class="deadline"><a class="applylink" href="${o.source_url}" target="_blank">View source →</a></div>` : ''}
+            <div><button class="mark-applied-btn" data-id="${o.id}" data-title="${encodeURIComponent(o.title)}" data-category="${encodeURIComponent(o.category ?? '')}" data-url="${encodeURIComponent(o.source_url ?? '')}">Mark as Applied</button></div>
           </div>
           <span class="badge ${cls}">${m?.match_percent ?? '–'}% · ${m?.status ?? 'Unscored'}</span>
         </div>
       `;
     }).join('');
+
+    list.querySelectorAll('.mark-applied-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = 'Saving…';
+        try {
+          const { error } = await supabase.from('applications').insert([{
+            opportunity_id: btn.dataset.id,
+            title: decodeURIComponent(btn.dataset.title),
+            category: decodeURIComponent(btn.dataset.category) || null,
+            source_url: decodeURIComponent(btn.dataset.url) || null,
+          }]);
+          if (error) throw error;
+          btn.textContent = 'Applied ✓';
+          loadApplied();
+        } catch (e) {
+          btn.textContent = 'Failed';
+          btn.disabled = false;
+        }
+      });
+    });
   }
 
   async function loadOpportunities(){
@@ -251,8 +434,46 @@
     render(e.target.dataset.f);
   });
 
+  async function loadApplied(){
+    const container = document.getElementById('applied-list');
+    try {
+      const { data, error } = await supabase
+        .from('applications')
+        .select('*')
+        .order('applied_at', { ascending: false });
+      if (error || !data || !data.length) {
+        container.innerHTML = '<div class="empty">Nothing marked as applied yet.</div>';
+        return;
+      }
+
+      const groups = {};
+      for (const a of data) {
+        const cat = a.category || 'Uncategorized';
+        if (!groups[cat]) groups[cat] = [];
+        groups[cat].push(a);
+      }
+
+      container.innerHTML = Object.entries(groups).map(([cat, items]) => `
+        <details class="folder">
+          <summary>${cat} (${items.length})</summary>
+          ${items.map(a => `
+            <div class="applied-item">
+              <div class="a-title">${a.title}</div>
+              <div class="a-meta">Applied on ${a.applied_at}</div>
+              ${a.source_url ? `<a class="applylink" href="${a.source_url}" target="_blank">View →</a>` : ''}
+            </div>
+          `).join('')}
+        </details>
+      `).join('');
+    } catch(e){
+      container.innerHTML = '<div class="empty">Could not load applications.</div>';
+    }
+  }
+
   loadProfile();
+  loadAchievements();
   loadOpportunities();
+  loadApplied();
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
