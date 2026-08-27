@@ -1,8 +1,13 @@
 // api/match-opportunities.js
 // Scores opportunities that don't have a match yet, using Gemini.
 
-const GEMINI_MODEL = "gemini-flash-latest"; // always points to Google's current stable Flash model
-const MAX_PER_RUN = 8; // keep each run small so it finishes well within time limits
+const GEMINI_MODEL = "gemini-2.5-flash";
+const MAX_PER_RUN = 15; // stays under the ~20/day free quota with headroom
+const DELAY_MS = 2000; // small courtesy delay between requests
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export default async function handler(req, res) {
   const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -52,6 +57,7 @@ export default async function handler(req, res) {
   const results = [];
 
   for (const opp of opportunities) {
+    if (results.length > 0) await sleep(DELAY_MS);
     const prompt = `You are helping a nursing student evaluate whether an opportunity fits them.
 
 STUDENT PROFILE:
@@ -70,6 +76,7 @@ STUDENT PROFILE:
 - Target degree level: ${profile.degree_level_preference}
 - Career goal: ${profile.career_goals}
 - Categories of interest: ${profile.categories_of_interest}
+- Recent achievements (updated over time): ${profile.recent_achievements || "None yet"}
 
 OPPORTUNITY:
 - Title: ${opp.title}
@@ -83,7 +90,7 @@ Respond with ONLY valid JSON (no markdown fences, no extra text), in exactly thi
 {"match_percent": <0-100 integer>, "status": "<Apply|Consider|Skip|Not Eligible>", "reasoning": "<1-2 sentences>", "missing_requirements": "<1 short sentence, or 'None'>"}`;
 
     try {
-      const geminiRes = await fetch(
+      let geminiRes = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
         {
           method: "POST",
@@ -96,6 +103,24 @@ Respond with ONLY valid JSON (no markdown fences, no extra text), in exactly thi
           }),
         }
       );
+
+      // Retry once if the model is temporarily busy (503)
+      if (geminiRes.status === 503) {
+        await sleep(5000);
+        geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-goog-api-key": GEMINI_API_KEY,
+            },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: prompt }] }],
+            }),
+          }
+        );
+      }
 
       if (!geminiRes.ok) {
         const errText = await geminiRes.text();
